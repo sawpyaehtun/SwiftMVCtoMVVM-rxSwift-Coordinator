@@ -8,6 +8,9 @@
 
 import Foundation
 import Alamofire
+import RxSwift
+import RxCocoa
+
 typealias JSON = [String : Any]
 
 enum Result<T> {
@@ -23,9 +26,9 @@ class GithubService{
     
     static let sharedInstance = GithubService()
     
-    func getLanguageList(completionHandler: (Result<[String]>) -> Void) {
+    func getLanguageList() -> Observable<[String]> {
         // For simplicity we will use a stubbed list of languages.
-        let stubbedListOfPopularLanguages = [
+        return Observable.just([
             "Swift",
             "Objective-C",
             "Java",
@@ -33,24 +36,24 @@ class GithubService{
             "C++",
             "Python",
             "C#"
-        ]
-        
-        completionHandler(.success(stubbedListOfPopularLanguages))
+            ])
     }
 
-    func getMostPopularRepositories(byLanguage language: String, completionHandler: @escaping (Result<[Repository]>) -> Void) {
+    func getMostPopularRepositories(byLanguage language: String ) -> Observable<[Repository]> {
         let url = "https://api.github.com/search/repositories?q=language:\(language)&sort=stars"
-        Alamofire.request(url)
-            .responseJSON { (response) in
-                //let json = response.result.value as? JSON
+        return Observable<[Repository]>.create({ (observer) -> Disposable in
+            let request = Alamofire.request(url).responseJSON(completionHandler: { (response) -> Void in
                 guard let json = response.result.value as? JSON,
-                let itemJson = json["items"] as? [JSON]
-                else {print("fail"); return}
+                    let itemJson = json["items"] as? [JSON]
+                    else {print("fail"); return}
                 
                 let repoList = itemJson.compactMap(Repository.init)
-                
-                completionHandler(.success(repoList))
-                
-        }
+                observer.onNext(repoList)
+                observer.onCompleted()
+            })
+            return Disposables.create {
+                request.cancel()
+            }
+        })
     }
 }

@@ -7,68 +7,45 @@
 //
 
 import UIKit
-
-protocol LanguageListViewControllerDelegate: class {
-    func languageListViewController(_ viewController: LanguageListViewController, didSelectLanguage language: String)
-    func languageListViewControllerDidCancel(_ viewController: LanguageListViewController)
-}
+import RxSwift
+import RxCocoa
 
 class LanguageListViewController: UIViewController {
 
-    var delegate : LanguageListViewControllerDelegate?
+    let disposeBag = DisposeBag()
+    let cancleButton = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: nil)
+    private let _cancle = PublishSubject<Void>()
+    var didCancle : Observable<Void> {return _cancle.asObservable()}
+    
+    private let _selectedLanguage = PublishSubject<String>()
+    var didSelectedLanguage : Observable<String> {return _selectedLanguage.asObservable()}
+    
     private let refreshControl = UIRefreshControl()
     @IBOutlet weak var languageTable: UITableView!
-    fileprivate var languages = [String]()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         setUpUI()
-        loadData()
-
-        refreshControl.addTarget(self, action: #selector(LanguageListViewController.loadData), for: .valueChanged)
+        setUpBinding()
     }
     
     private func setUpUI(){
         self.title = "Languages"
-        let cancleButton = UIBarButtonItem(barButtonSystemItem: .cancel, target: self, action: #selector(LanguageListViewController.cancle))
-        
         navigationItem.leftBarButtonItem = cancleButton
-        
         languageTable.register(UINib(nibName: String(describing: LanguageTableViewCell.self), bundle: nil), forCellReuseIdentifier: String(describing: LanguageTableViewCell.self))
     }
     
-    @objc private func cancle(){
-        delegate?.languageListViewControllerDidCancel(self)
-    }
-    
-    @objc private func loadData() {
-        GithubService.sharedInstance.getLanguageList { [weak self] result in
-            guard case let .success(newLanguages) = result else { return }
-            self?.languages = newLanguages
-            self?.languageTable.reloadData()
-        }
-    }
-
-}
-
-extension LanguageListViewController : UITableViewDataSource{
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return languages.count
-    }
-    
-    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: String(describing: LanguageTableViewCell.self), for: indexPath) as! LanguageTableViewCell
-        cell.setUpCellUI(language: languages[indexPath.row])
-        return cell
-    }
-    
-    func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
-    }
-}
-
-extension LanguageListViewController : UITableViewDelegate{
-    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        delegate?.languageListViewController(self, didSelectLanguage: languages[indexPath.row])
+    private func setUpBinding() {
+        let languages = GithubService.sharedInstance.getLanguageList()
+        
+        languages.bind(to: languageTable.rx.items(cellIdentifier: String(describing: LanguageTableViewCell.self), cellType: LanguageTableViewCell.self)){( _, language, cell) in
+            cell.setUpCellUI(language: language)
+            }
+            .disposed(by: disposeBag)
+        
+        languageTable.rx.modelSelected(String.self).bind(to: _selectedLanguage)
+        .disposed(by: disposeBag)
+        
+        cancleButton.rx.tap.bind(to: _cancle).disposed(by: disposeBag)
     }
 }

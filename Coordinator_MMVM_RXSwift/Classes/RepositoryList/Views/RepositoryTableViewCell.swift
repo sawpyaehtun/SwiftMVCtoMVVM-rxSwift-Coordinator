@@ -28,7 +28,7 @@ class RepositoryTableViewCell: UITableViewCell {
         descriptionLabel.text = des
     }
     
-    func starCount (starCount : String ) {
+    func setStarCount (starCount : String ) {
         starCountLabel.numberOfLines = 0
         starCountLabel.text = starCount
     }
